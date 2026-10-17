@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Consola · Hermanos Vizcaíno</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F4F4F0; --surface: #FFFFFF; --surface-2: #ECEDE7;
+    --ink: #1E2A2E; --ink-soft: #5C6B6F; --ink-faint: #8B9A9D;
+    --border: #DBDDD5; --border-strong: #C3C7BC;
+    --income: #2E6F52; --income-bg: #E7F0EA;
+    --expense: #9C4130; --expense-bg: #F3E7E3;
+    --warn: #A8791E; --warn-bg: #F5EDDB;
+    --info: #33546A; --info-bg: #E5EBEE;
+    --critical: #7A1F1F; --critical-bg: #F7DCDC;
+    --radius: 8px;
+    --font-head: 'Source Serif 4', Georgia, serif;
+    --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'IBM Plex Mono', Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14181A; --surface: #1C2225; --surface-2: #232A2D; --ink: #E8EBE9;
+      --ink-soft: #A3AFB0; --ink-faint: #6E7A7C; --border: #323B3D; --border-strong: #414C4E;
+      --income: #7FC3A0; --income-bg: #1F3329; --expense: #E59A88; --expense-bg: #3A2420;
+      --warn: #E2B862; --warn-bg: #3A3020; --info: #9DBBD0; --info-bg: #22303A;
+      --critical: #F0A0A0; --critical-bg: #3F2222;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14181A; --surface: #1C2225; --surface-2: #232A2D; --ink: #E8EBE9;
+    --ink-soft: #A3AFB0; --ink-faint: #6E7A7C; --border: #323B3D; --border-strong: #414C4E;
+    --income: #7FC3A0; --income-bg: #1F3329; --expense: #E59A88; --expense-bg: #3A2420;
+    --warn: #E2B862; --warn-bg: #3A3020; --info: #9DBBD0; --info-bg: #22303A;
+    --critical: #F0A0A0; --critical-bg: #3F2222;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 22px 16px 40px; }
+  header.top { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; border-bottom: 1px solid var(--border); padding-bottom: 14px; margin-bottom: 20px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand img { max-height: 44px; }
+  .brand h1 { font-family: var(--font-head); font-weight: 600; font-size: 22px; margin: 0; letter-spacing: .2px; }
+  .brand small { display: block; color: var(--ink-faint); font-size: 12px; font-weight: 500; }
+  .today { text-align: right; }
+  .today .d { font-family: var(--font-head); font-size: 20px; font-weight: 600; }
+  .today .s { color: var(--ink-soft); font-size: 12.5px; }
+  .today .s button { all: unset; cursor: pointer; color: var(--info); text-decoration: underline; margin-left: 6px; }
+
+  h2.sec { font-family: var(--font-head); font-size: 17px; font-weight: 600; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+  h2.sec .count { font-family: var(--font-body); font-size: 12px; font-weight: 600; color: var(--ink-soft); background: var(--surface-2); border-radius: 20px; padding: 1px 8px; }
+
+  /* accesos */
+  .apps { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin-bottom: 26px; }
+  .app { display: flex; gap: 12px; align-items: center; padding: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); color: inherit; text-decoration: none; transition: border-color .15s, transform .15s; }
+  .app:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+  .app .ic { width: 38px; height: 38px; flex: none; border-radius: 8px; display: grid; place-items: center; background: var(--info-bg); color: var(--info); }
+  .app .ic svg { width: 20px; height: 20px; }
+  .app b { display: block; font-size: 14.5px; font-weight: 600; }
+  .app span { display: block; font-size: 12px; color: var(--ink-soft); }
+  .app.off { opacity: .55; pointer-events: none; }
+
+  /* panel hoy */
+  .grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } .today { text-align: left; } }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+  .card-head h2.sec { margin: 0; }
+  .meta { font-size: 12px; color: var(--ink-faint); }
+  .btn { all: unset; cursor: pointer; font-size: 13px; font-weight: 600; padding: 6px 12px; border: 1px solid var(--border-strong); border-radius: 6px; color: var(--ink); background: var(--surface); }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+  .group { margin-top: 12px; }
+  .group:first-of-type { margin-top: 0; }
+  .ghead { font-size: 12px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; display: inline-block; margin-bottom: 6px; }
+  .g-red .ghead { background: var(--critical-bg); color: var(--critical); }
+  .g-amber .ghead { background: var(--warn-bg); color: var(--warn); }
+  .g-info .ghead { background: var(--info-bg); color: var(--info); }
+  .g-ok .ghead { background: var(--income-bg); color: var(--income); }
+  .item { padding: 8px 0 8px 12px; border-left: 3px solid var(--border); margin: 0 0 6px; }
+  .g-red .item { border-left-color: var(--critical); }
+  .g-amber .item { border-left-color: var(--warn); }
+  .g-info .item { border-left-color: var(--info); }
+  .g-ok .item { border-left-color: var(--income); }
+  .item b { font-weight: 600; }
+  .item .what { color: var(--ink); }
+  .item .todo { display: block; color: var(--ink-soft); font-size: 13.5px; }
+  .item.small { padding: 3px 0 3px 12px; font-size: 13.5px; color: var(--ink-soft); }
+
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .row:last-child { border-bottom: 0; }
+  .row .l b { font-weight: 600; display: block; }
+  .row .l span { font-size: 12.5px; color: var(--ink-soft); }
+  .row .r { text-align: right; white-space: nowrap; font-family: var(--font-mono); font-size: 13.5px; }
+  .pill { display: inline-block; font-family: var(--font-body); font-size: 11.5px; font-weight: 600; border-radius: 20px; padding: 1px 8px; }
+  .p-red { background: var(--critical-bg); color: var(--critical); }
+  .p-amber { background: var(--warn-bg); color: var(--warn); }
+  .p-ok { background: var(--income-bg); color: var(--income); }
+  .in { color: var(--income); } .out { color: var(--expense); }
+  .totals { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  .tot { background: var(--surface-2); border-radius: 6px; padding: 8px 10px; }
+  .tot span { display: block; font-size: 11.5px; color: var(--ink-soft); }
+  .tot b { font-family: var(--font-mono); font-size: 16px; font-weight: 500; }
+  .warnline { background: var(--critical-bg); color: var(--critical); border-radius: 6px; padding: 7px 10px; font-size: 13px; margin-bottom: 8px; }
+  .warnline a { color: inherit; font-weight: 600; }
+  .empty { color: var(--ink-soft); font-size: 13.5px; padding: 6px 0; }
+  .later { border-style: dashed; }
+  .later p { margin: 0; color: var(--ink-soft); font-size: 13.5px; }
+
+  .daylabel { font-size: 12px; font-weight: 700; color: var(--ink-soft); margin: 10px 0 2px; }
+  .daylabel:first-child { margin-top: 0; }
+  .ev { display: flex; gap: 10px; padding: 5px 0; }
+  .ev .h { font-family: var(--font-mono); font-size: 13px; color: var(--ink-soft); width: 46px; flex: none; }
+  .ev .t b { font-weight: 600; } .ev .t span { display: block; font-size: 12.5px; color: var(--ink-soft); }
+
+  .banner { background: var(--warn-bg); color: var(--warn); border-radius: 6px; padding: 8px 12px; font-size: 13px; margin-bottom: 16px; display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+  /* conexión */
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: grid; place-items: center; padding: 16px; z-index: 50; }
+  .modal .box { background: var(--surface); color: var(--ink); border-radius: 12px; padding: 24px; width: 100%; max-width: 420px; }
+  .modal h3 { font-family: var(--font-head); margin: 0 0 6px; font-size: 20px; }
+  .modal p { color: var(--ink-soft); font-size: 13.5px; margin: 0 0 14px; }
+  .modal label { font-size: 13px; font-weight: 600; display: block; margin-top: 8px; }
+  .modal input { width: 100%; padding: 9px 10px; border: 1px solid var(--border-strong); border-radius: 6px; font: inherit; background: var(--surface); color: var(--ink); margin-top: 4px; }
+  .modal .acts { display: flex; gap: 8px; justify-content: space-between; margin-top: 16px; flex-wrap: wrap; }
+  .modal .err { color: var(--critical); font-size: 13px; min-height: 18px; margin-top: 8px; }
+
+  footer { margin-top: 24px; font-size: 12px; color: var(--ink-faint); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  footer button { all: unset; cursor: pointer; text-decoration: underline; }
+
+  /* impresión: solo el resumen del correo */
+  #printArea { display: none; }
+  @media print {
+    @page { size: A4; margin: 16mm 15mm; }
+    body { background: #fff; color: #000; font-size: 11pt; }
+    .wrap, .modal { display: none !important; }
+    #printArea { display: block; }
+    #printArea h1 { font-family: var(--font-head); font-size: 16pt; margin: 0 0 2mm; }
+    #printArea .pmeta { font-size: 9.5pt; color: #444; margin-bottom: 5mm; border-bottom: 1px solid #999; padding-bottom: 2mm; }
+    #printArea .ghead { background: none !important; color: #000 !important; padding: 0; font-size: 10pt; border-bottom: 1px solid #000; display: block; margin: 4mm 0 2mm; }
+    #printArea .item { border-left: 2px solid #000 !important; break-inside: avoid; }
+    #printArea .item .todo { color: #333; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <img src="logo.png" alt="" onerror="this.remove()">
+      <div><h1>Hermanos Vizcaíno, S.C.A.</h1><small>Consola · Dep. Administrativo</small></div>
+    </div>
+    <div class="today"><div class="d" id="hoyFecha"></div><div class="s" id="estado">Cargando…</div></div>
+  </header>
+
+  <div id="banner"></div>
+
+  <h2 class="sec">Aplicaciones</h2>
+  <nav class="apps" id="apps"></nav>
+
+  <div class="grid">
+    <div>
+      <section class="card" id="cardCorreo"></section>
+    </div>
+    <div>
+      <section class="card" id="cardEfectos"></section>
+      <section class="card" id="cardCalendario"></section>
+      <section class="card later">
+        <div class="card-head"><h2 class="sec">Albaranes</h2></div>
+        <p>Sin valorar y pendientes de facturar. Llega en la siguiente fase, cuando el PC vuelque cada día los albaranes y facturas a datt.</p>
+      </section>
+    </div>
+  </div>
+
+  <footer>
+    <span id="pie"></span>
+    <span><button id="btnConexion">Conexión</button></span>
+  </footer>
+</div>
+
+<div id="printArea"></div>
+<div id="modalRoot"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ===================== CONFIGURACIÓN ===================== */
+  var BASE = 'https://marvizcainodat.github.io/';
+  var APPS = [
+    { name: 'Tesorería', desc: 'Cobros, pagos, efectos y provisiones', url: BASE + 'webtesoreria/', icon: 'euro' },
+    { name: 'Prealbaranes', desc: 'Crear prealbarán en obra', url: BASE + 'ALBARANES/prealbaran.html', icon: 'doc' },
+    { name: 'Albaranes firmados', desc: 'Entregas y firma del cliente', url: BASE + 'ALBARANES/entregas.html', icon: 'sign' },
+    { name: 'Web pública', desc: 'Próximamente', url: '', icon: 'globe' },
+    { name: 'WhatsApp Web', desc: 'WhatsApp de la oficina', url: 'https://web.whatsapp.com/', icon: 'chat' },
+    { name: 'Correo', desc: 'Gmail de la oficina', url: 'https://mail.google.com/', icon: 'mail' }
+  ];
+  var DIAS_EFECTOS = 3;      /* efectos que vencen en los próximos N días */
+  var DIAS_CALENDARIO = 3;   /* calendario: hoy + N-1 días */
+  var REFRESCO_MIN = 5;      /* recarga automática */
+  /* La dirección y la clave son las mismas de Tesorería y se comparten con ella en este navegador. */
+  var CFG_KEY = 'panelTesoreriaCfg';
+  var DEMO_KEY = 'consolaModoPrueba';
+
+  /* ===================== utilidades ===================== */
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return (s == null ? '' : String(s)).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+  var isoHoy = function (add) { var d = new Date(); d.setDate(d.getDate() + (add || 0)); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+  /* importes y fechas que lleguen como texto (igual que Tesorería) */
+  var num = function (v) {
+    if (typeof v === 'number') return v;
+    var t = String(v == null ? '' : v).replace(/[\s\u00a0€]/g, '');
+    if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(t)) return Number(t.replace(/\./g, '').replace(',', '.'));
+    if (/^-?\d+,\d+$/.test(t)) return Number(t.replace(',', '.'));
+    return Number(t) || 0;
+  };
+  var fecha = function (v) {
+    if (typeof v === 'number' && v > 20000 && v < 80000) return new Date(Date.UTC(1899, 11, 30) + v * 86400000).toISOString().slice(0, 10);
+    var t = String(v == null ? '' : v).trim(), m;
+    if (/^\d{4}-\d{2}-\d{2}/.test(t)) return t.slice(0, 10);
+    if ((m = t.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2}|\d{4})$/))) { var y = +m[3]; if (m[3].length === 2) y += 2000; return y + '-' + pad(+m[2]) + '-' + pad(+m[1]); }
+    return '';
+  };
+  var si = function (v) { return v === true || ['true', 'verdadero', 'si', 'sí', 'x', '1'].indexOf(String(v).trim().toLowerCase()) >= 0; };
+  var isoOk = function (s) { return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}/.test(s); };
+  var diasHasta = function (iso) { var a = new Date(iso.slice(0, 10) + 'T00:00:00'), b = new Date(isoHoy() + 'T00:00:00'); return Math.round((a - b) / 86400000); };
+  var fmtFecha = function (iso) { if (!isoOk(iso)) return '—'; var p = iso.slice(0, 10).split('-'); return p[2] + '/' + p[1]; };
+  var cap = function (t) { return t ? t.charAt(0).toUpperCase() + t.slice(1) : t; };
+  var fmtDia = function (iso) { var d = new Date(iso + 'T12:00:00'); return cap(d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })); };
+  var euros = function (n) { var v = (Number(n) || 0).toFixed(2).split('.'); return v[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + v[1] + ' €'; };
+  var getCfg = function () { try { return JSON.parse(localStorage.getItem(CFG_KEY) || 'null'); } catch (e) { return null; } };
+  var setCfg = function (c) { try { if (c) localStorage.setItem(CFG_KEY, JSON.stringify(c)); else localStorage.removeItem(CFG_KEY); } catch (e) {} };
+  var getDemo = function () { try { return localStorage.getItem(DEMO_KEY) === '1'; } catch (e) { return false; } };
+  var setDemo = function (v) { try { if (v) localStorage.setItem(DEMO_KEY, '1'); else localStorage.removeItem(DEMO_KEY); } catch (e) {} };
+
+  var ICONS = {
+    euro: '<path d="M17 6.5A6.5 6.5 0 1 0 17 17.5M4 10h9M4 14h9"/>',
+    doc: '<path d="M7 3h7l5 5v13H7z M14 3v5h5 M10 13h6 M10 17h6"/>',
+    sign: '<path d="M4 19c3-1 4-6 6-6s1 4 3 4 2-3 4-3 2 2 3 2 M14 4l4 4-7 7H7v-4z"/>',
+    globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
+    chat: '<path d="M4 20l1.5-4A8 8 0 1 1 8 19z"/>',
+    mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>'
+  };
+  var svg = function (k) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + (ICONS[k] || '') + '</svg>'; };
+
+  /* ===================== accesos ===================== */
+  function pintarApps() {
+    $('apps').innerHTML = APPS.map(function (a) {
+      var off = !a.url;
+      return '<a class="app' + (off ? ' off' : '') + '" ' + (off ? '' : 'href="' + esc(a.url) + '" target="_blank" rel="noopener"') + '>'
+        + '<div class="ic">' + svg(a.icon) + '</div><div><b>' + esc(a.name) + '</b><span>' + esc(a.desc) + '</span></div></a>';
+    }).join('');
+  }
+
+  /* ===================== datos ===================== */
+  var datos = null, origen = '';
+
+  async function cargar() {
+    var cfg = getCfg();
+    if (getDemo()) { datos = demo(); origen = 'prueba'; pintar(); return; }
+    if (!cfg || !cfg.url || !cfg.key) { origen = ''; pintar(); pedirConexion(); return; }
+    $('estado').textContent = 'Actualizando…';
+    try {
+      var r = await fetch(cfg.url, { method: 'POST', body: JSON.stringify({ key: cfg.key, action: 'getAll' }) });
+      var j = await r.json();
+      if (j.error) throw new Error(j.error);
+      var d = {};
+      Object.keys(j.data || {}).forEach(function (c) {
+        d[c] = (j.data[c] || []).map(function (row) {
+          var o = {}; try { o = typeof row.json === 'string' ? JSON.parse(row.json) : (row.json || {}); } catch (e) {}
+          o.id = row.id; return o;
+        });
+      });
+      datos = d; origen = 'datt';
+      pintar();
+    } catch (e) {
+      $('estado').innerHTML = 'No se pudo conectar: ' + esc(e.message || e) + ' <button id="reint">Reintentar</button>';
+      $('reint').onclick = cargar;
+    }
+  }
+
+  /* ===================== efectos (misma lógica que Tesorería) ===================== */
+  function lineasCobro(d) {
+    var pagos = d.invoiceOutPayments || [], out = [];
+    (d.invoicesOut || []).forEach(function (inv) {
+      var propias = pagos.filter(function (p) { return p.invoiceId === inv.id; });
+      var ls = propias.length ? propias : [{ amount: inv.amount, dueDate: inv.dueDate, method: inv.paymentMethod, collected: inv.collected }];
+      ls.forEach(function (l) { out.push({ who: inv.clientId, num: inv.number, amount: num(l.amount), due: fecha(l.dueDate), method: l.method || inv.paymentMethod || '', done: si(l.collected) }); });
+    });
+    return out;
+  }
+  function lineasPago(d) {
+    var pagos = d.invoiceInPayments || [], out = [];
+    (d.invoicesIn || []).forEach(function (inv) {
+      var propias = pagos.filter(function (p) { return p.invoiceId === inv.id; });
+      var ls = propias.length ? propias : [{ amount: inv.amount, dueDate: inv.dueDate, method: inv.paymentMethod, paid: inv.paid }];
+      ls.forEach(function (l) { out.push({ who: inv.supplierId, num: inv.number, amount: num(l.amount), due: fecha(l.dueDate), method: l.method || inv.paymentMethod || 'Transferencia', done: si(l.paid) }); });
+    });
+    return out;
+  }
+  function pintarEfectos() {
+    var el = $('cardEfectos');
+    var head = '<div class="card-head"><h2 class="sec">Vencimientos · ' + DIAS_EFECTOS + ' días</h2><a class="btn" href="' + BASE + 'webtesoreria/" target="_blank" rel="noopener">Tesorería</a></div>';
+    if (!datos) { el.innerHTML = head + '<div class="empty">Conecta la consola para ver los vencimientos.</div>'; return; }
+    var nombre = function (lista, id) { var x = (datos[lista] || []).filter(function (o) { return o.id === id; })[0]; return x ? x.name : ''; };
+    var items = [], vencidos = { n: 0, cobro: 0, pago: 0 };
+    lineasCobro(datos).forEach(function (l) {
+      if (l.done || !isoOk(l.due)) return;
+      var d = diasHasta(l.due);
+      if (d < 0) { vencidos.n++; vencidos.cobro += l.amount; return; }
+      if (d < DIAS_EFECTOS) items.push({ tipo: 'in', d: d, quien: nombre('clients', l.who) || 'Cliente', num: l.num, imp: l.amount, metodo: l.method });
+    });
+    lineasPago(datos).forEach(function (l) {
+      if (l.done || !isoOk(l.due)) return;
+      var d = diasHasta(l.due);
+      if (d < 0) { vencidos.n++; vencidos.pago += l.amount; return; }
+      if (d < DIAS_EFECTOS) items.push({ tipo: 'out', d: d, quien: nombre('suppliers', l.who) || 'Proveedor', num: l.num, imp: l.amount, metodo: l.method });
+    });
+    items.sort(function (a, b) { return a.d - b.d || b.imp - a.imp; });
+    var tc = items.filter(function (i) { return i.tipo === 'in'; }).reduce(function (s, i) { return s + i.imp; }, 0);
+    var tp = items.filter(function (i) { return i.tipo === 'out'; }).reduce(function (s, i) { return s + i.imp; }, 0);
+    var html = head;
+    if (vencidos.n) html += '<div class="warnline">' + vencidos.n + ' vencido(s) sin marcar: ' + (vencidos.cobro ? 'cobros ' + euros(vencidos.cobro) : '') + (vencidos.cobro && vencidos.pago ? ' · ' : '') + (vencidos.pago ? 'pagos ' + euros(vencidos.pago) : '') + '. <a href="' + BASE + 'webtesoreria/" target="_blank" rel="noopener">Revisar</a></div>';
+    html += '<div class="totals"><div class="tot"><span>A cobrar</span><b class="in">' + euros(tc) + '</b></div><div class="tot"><span>A pagar</span><b class="out">' + euros(tp) + '</b></div></div>';
+    if (!items.length) html += '<div class="empty">Nada vence en los próximos ' + DIAS_EFECTOS + ' días.</div>';
+    html += items.map(function (i) {
+      var pill = i.d === 0 ? '<span class="pill p-red">Hoy</span>' : (i.d === 1 ? '<span class="pill p-amber">Mañana</span>' : '<span class="pill p-amber">En ' + i.d + ' días</span>');
+      return '<div class="row"><div class="l"><b>' + esc(i.quien) + '</b><span>' + (i.tipo === 'in' ? 'Cobro' : 'Pago') + ' · Fra. ' + esc(i.num || '—') + (i.metodo ? ' · ' + esc(i.metodo) : '') + '</span></div>'
+        + '<div class="r"><div class="' + i.tipo + '">' + (i.tipo === 'out' ? '−' : '') + euros(i.imp) + '</div>' + pill + '</div></div>';
+    }).join('');
+    el.innerHTML = html;
+  }
+
+  /* ===================== resumen del correo y calendario ===================== */
+  function resumen() {
+    var r = (datos && datos.consolaResumen || []).filter(function (o) { return o.id === 'hoy'; })[0];
+    return r || null;
+  }
+  function htmlCorreo(r, paraImprimir) {
+    var c = r.correo || {};
+    var grupo = function (cls, titulo, lista, fn) {
+      if (!lista || !lista.length) return '';
+      return '<div class="group ' + cls + '"><div class="ghead">' + titulo + ' · ' + lista.length + '</div>' + lista.map(fn).join('') + '</div>';
+    };
+    var punto = function (x) {
+      if (typeof x === 'string') return '<div class="item"><span class="what">' + esc(x) + '</span></div>';
+      return '<div class="item"><b>' + esc(x.quien || '') + '</b>' + (x.asunto ? ' · <span class="what">' + esc(x.asunto) + '</span>' : '') + (x.accion ? '<span class="todo">→ ' + esc(x.accion) + '</span>' : '') + '</div>';
+    };
+    var fact = function (x) { return typeof x === 'string' ? '<div class="item small">' + esc(x) + '</div>' : '<div class="item small"><b>' + esc(x.proveedor || '') + '</b> · ' + esc(x.numero || '') + (x.nota ? ' — ' + esc(x.nota) : '') + '</div>'; };
+    var peq = function (x) { return '<div class="item small">' + esc(typeof x === 'string' ? x : (x.quien ? x.quien + ' · ' : '') + (x.asunto || '')) + '</div>'; };
+    var html = ''
+      + grupo('g-red', 'Urgente hoy', c.urgente, punto)
+      + grupo('g-amber', 'Esperando tu respuesta', c.sinContestar, punto)
+      + grupo('g-amber', 'Esta semana', c.semana, punto)
+      + grupo('g-ok', 'Te han contestado', c.contestados, punto)
+      + grupo('g-info', 'Facturas de proveedor recibidas', c.facturas, fact)
+      + grupo('g-ok', 'Cerrado / informativo', c.cerrado, peq);
+    if (!html) html = '<div class="empty">' + esc(c.nada || 'No ha entrado nada relevante.') + '</div>';
+    return html;
+  }
+  function pintarCorreo() {
+    var el = $('cardCorreo'), r = resumen();
+    var head = function (meta, imprimir) {
+      return '<div class="card-head"><div><h2 class="sec">Correo de hoy</h2><div class="meta">' + meta + '</div></div>'
+        + (imprimir ? '<button class="btn primary" id="btnImprimir">Imprimir</button>' : '') + '</div>';
+    };
+    if (!datos) { el.innerHTML = head('Conecta la consola para ver el resumen.', false); return; }
+    if (!r) { el.innerHTML = head('Aún no hay resumen guardado. Se genera de lunes a viernes a las 8:45.', false); return; }
+    var antiguo = r.fecha && r.fecha !== isoHoy();
+    var gen = String(r.generado || r.fecha || ''), genDia = gen.slice(0, 10), genHora = gen.slice(11, 16);
+    var meta = 'Generado ' + (genDia === isoHoy() ? 'hoy' : esc(fmtDia(genDia))) + (genHora ? ' a las ' + esc(genHora) : '') + (antiguo ? ' · <b style="color:var(--warn)">no es de hoy</b>' : '');
+    el.innerHTML = head(meta, true) + htmlCorreo(r);
+    $('btnImprimir').onclick = function () {
+      $('printArea').innerHTML = '<h1>Resumen del correo · ' + esc(r.fecha ? fmtDia(r.fecha) : '') + '</h1><div class="pmeta">Hermanos Vizcaíno, S.C.A. · Dep. Administrativo · ' + meta.replace(/<[^>]+>/g, '') + '</div>' + htmlCorreo(r, true);
+      window.print();
+    };
+  }
+  function pintarCalendario() {
+    var el = $('cardCalendario'), r = resumen();
+    var head = '<div class="card-head"><h2 class="sec">Calendario · ' + DIAS_CALENDARIO + ' días</h2><a class="btn" href="https://calendar.google.com/" target="_blank" rel="noopener">Abrir</a></div>';
+    if (!datos || !r) { el.innerHTML = head + '<div class="empty">Llega con el resumen de las 8:45.</div>'; return; }
+    var desde = isoHoy(), hasta = isoHoy(DIAS_CALENDARIO - 1);
+    var evs = (r.calendario || []).filter(function (e) { return isoOk(e.fecha) && e.fecha >= desde && e.fecha <= hasta; })
+      .sort(function (a, b) { return (a.fecha + (a.hora || '')) < (b.fecha + (b.hora || '')) ? -1 : 1; });
+    if (!evs.length) { el.innerHTML = head + '<div class="empty">Nada en el calendario estos días.</div>'; return; }
+    var html = head, dia = '';
+    evs.forEach(function (e) {
+      if (e.fecha !== dia) { dia = e.fecha; html += '<div class="daylabel">' + (dia === desde ? 'Hoy · ' : '') + esc(fmtDia(dia)) + '</div>'; }
+      html += '<div class="ev"><div class="h">' + esc(e.hora || 'Todo') + '</div><div class="t"><b>' + esc(e.titulo || '') + '</b>' + (e.lugar ? '<span>' + esc(e.lugar) + '</span>' : '') + '</div></div>';
+    });
+    el.innerHTML = html;
+  }
+
+  /* ===================== pintar todo ===================== */
+  function pintar() {
+    $('hoyFecha').textContent = fmtDia(isoHoy());
+    var h = new Date();
+    $('estado').innerHTML = origen === 'prueba' ? 'Modo prueba · datos inventados' : (origen ? 'Actualizado a las ' + pad(h.getHours()) + ':' + pad(h.getMinutes()) + ' <button id="act">Actualizar</button>' : 'Sin conectar');
+    if ($('act')) $('act').onclick = cargar;
+    $('banner').innerHTML = origen === 'prueba' ? '<div class="banner"><span>Estás viendo la consola con datos de ejemplo.</span><button class="btn" id="salirDemo">Conectar de verdad</button></div>' : '';
+    if ($('salirDemo')) $('salirDemo').onclick = function () { setDemo(false); datos = null; cargar(); };
+    pintarCorreo(); pintarEfectos(); pintarCalendario();
+    $('pie').textContent = origen === 'datt' ? 'Datos de datt, con la misma conexión que Tesorería.' : '';
+  }
+
+  /* ===================== conexión ===================== */
+  function pedirConexion() {
+    var cfg = getCfg() || {};
+    $('modalRoot').innerHTML = '<div class="modal"><div class="box"><h3>Conectar la consola</h3>'
+      + '<p>Es la misma dirección y clave de Tesorería. Si ya entraste en Tesorería desde este navegador, normalmente no te la pedirá. Se guardan solo en este dispositivo.</p>'
+      + '<label>Dirección del servicio</label><input id="cUrl" placeholder="https://script.google.com/macros/s/…/exec" value="' + esc(cfg.url || '') + '">'
+      + '<label>Clave</label><input id="cKey" type="password" value="">'
+      + '<div class="err" id="cErr"></div>'
+      + '<div class="acts"><button class="btn" id="cDemo">Ver con datos de prueba</button><button class="btn primary" id="cOk">Conectar</button></div></div></div>';
+    $('cDemo').onclick = function () { setDemo(true); $('modalRoot').innerHTML = ''; cargar(); };
+    $('cOk').onclick = async function () {
+      var url = $('cUrl').value.trim(), key = $('cKey').value;
+      if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(url)) { $('cErr').textContent = 'La dirección debe terminar en /exec.'; return; }
+      if (!key) { $('cErr').textContent = 'Escribe la clave.'; return; }
+      $('cErr').textContent = 'Comprobando…';
+      try {
+        var r = await fetch(url, { method: 'POST', body: JSON.stringify({ key: key, action: 'getAll' }) });
+        var j = await r.json(); if (j.error) throw new Error(j.error);
+        setCfg({ url: url, key: key }); setDemo(false); $('modalRoot').innerHTML = ''; cargar();
+      } catch (e) { $('cErr').textContent = 'No se pudo conectar: ' + (e.message || e); }
+    };
+  }
+  $('btnConexion').onclick = pedirConexion;
+
+  /* ===================== datos de prueba ===================== */
+  function demo() {
+    return {
+      clients: [{ id: 'c1', name: 'Construcciones del Poniente' }, { id: 'c2', name: 'UTE Sede Judicial' }],
+      suppliers: [{ id: 's1', name: 'Mármoles La Viña' }, { id: 's2', name: 'Transportes Jajomiz' }],
+      invoicesOut: [
+        { id: 'f1', clientId: 'c1', number: '26/0412', amount: 8450.30, dueDate: isoHoy(0), paymentMethod: 'Pagaré' },
+        { id: 'f2', clientId: 'c2', number: '26/0398', amount: 12300, dueDate: isoHoy(2), paymentMethod: 'Transferencia' },
+        { id: 'f3', clientId: 'c1', number: '26/0350', amount: 2100, dueDate: isoHoy(-4), paymentMethod: 'Transferencia' }
+      ],
+      invoicesIn: [
+        { id: 'p1', supplierId: 's1', number: '2026-09-102', amount: 3120.55, dueDate: isoHoy(1), paymentMethod: 'Confirming' },
+        { id: 'p2', supplierId: 's2', number: '861', amount: 640, dueDate: isoHoy(10) }
+      ],
+      consolaResumen: [{
+        id: 'hoy', fecha: isoHoy(), generado: isoHoy() + 'T08:47',
+        correo: {
+          urgente: [{ quien: 'Banco', asunto: 'Aviso de recibo devuelto', accion: 'Llamar a la oficina y revisar la cuenta' }],
+          sinContestar: [{ quien: 'Cliente de ejemplo', asunto: 'Pide fecha de colocación', accion: 'Confirmar fecha con el taller y contestar' }],
+          semana: [{ quien: 'Gestoría (laboral)', asunto: 'Documentación de nóminas', accion: 'Enviar antes del viernes' }],
+          contestados: [{ quien: 'Proveedor de ejemplo', asunto: 'Confirma precio del material', accion: 'Pasar al presupuesto' }],
+          facturas: [{ proveedor: 'Mármoles La Viña', numero: '2026-09-118' }],
+          cerrado: ['Confirmación de pedido recibida', '3 correos de publicidad']
+        },
+        calendario: [
+          { fecha: isoHoy(0), hora: '10:00', titulo: 'Visita a obra', lugar: 'Roquetas de Mar' },
+          { fecha: isoHoy(1), hora: '', titulo: 'Plazo para enviar documentación' },
+          { fecha: isoHoy(2), hora: '12:30', titulo: 'Reunión con proveedor' }
+        ]
+      }]
+    };
+  }
+
+  /* ===================== arranque ===================== */
+  pintarApps();
+  cargar();
+  setInterval(function () { if (document.visibilityState === 'visible') cargar(); }, REFRESCO_MIN * 60000);
+})();
+</script>
+</body>
+</html>
