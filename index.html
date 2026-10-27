@@ -171,10 +171,7 @@
     <div>
       <section class="card" id="cardEfectos"></section>
       <section class="card" id="cardCalendario"></section>
-      <section class="card later">
-        <div class="card-head"><h2 class="sec">Albaranes</h2></div>
-        <p>Sin valorar y pendientes de facturar. Llega en la siguiente fase, cuando el PC vuelque cada día los albaranes y facturas a datt.</p>
-      </section>
+      <section class="card" id="cardAlbaranes"></section>
     </div>
   </div>
 
@@ -338,6 +335,30 @@
     el.innerHTML = html;
   }
 
+  /* ===================== albaranes pendientes de facturar ===================== */
+  /* Los vuelca el PC desde MN Gest a la pestaña «albaranes» de datt cada hora. */
+  function pintarAlbaranes() {
+    var el = $('cardAlbaranes');
+    var lista = datos ? (datos.albaranes || []).filter(function (a) { return si(a.pendienteFacturar); }) : [];
+    var head = '<div class="card-head"><h2 class="sec">Pendientes de facturar' + (datos ? ' <span class="count">' + lista.length + '</span>' : '') + '</h2></div>';
+    if (!datos) { el.innerHTML = head + '<div class="empty">Conecta la consola para ver los albaranes.</div>'; return; }
+    if (!datos.albaranes) { el.innerHTML = head + '<div class="empty">datt no envía la pestaña de albaranes: falta añadir «albaranes» a COLS en el Code.gs.</div>'; return; }
+    if (!lista.length) { el.innerHTML = head + '<div class="empty">No hay albaranes pendientes de facturar.</div>'; return; }
+    lista.sort(function (a, b) { return (fecha(a.fecha) || '9') < (fecha(b.fecha) || '9') ? -1 : 1; });
+    var total = lista.reduce(function (s, a) { return s + num(a.importe); }, 0);
+    var html = head + '<div class="totals"><div class="tot"><span>Albaranes</span><b>' + lista.length + '</b></div><div class="tot"><span>Importe en MN Gest</span><b>' + euros(total) + '</b></div></div>';
+    html += lista.map(function (a) {
+      var n = String(a.numero || a.id || '').replace(/^\d+-0*/, '').replace(/\/\d+$/, '');
+      var f = fecha(a.fecha), dias = isoOk(f) ? -diasHasta(f) : null;
+      var pills = (si(a.firmado) ? '<span class="pill p-ok">Firmado</span> ' : '<span class="pill p-amber">Sin firma</span> ')
+        + (si(a.valorado) ? '' : '<span class="pill p-amber">Sin valorar</span>');
+      return '<div class="row"><div class="l"><b>Alb. ' + esc(n) + ' · ' + esc(a.cliente || '—') + '</b><span>' + fmtFecha(f)
+        + (dias == null ? '' : (dias <= 0 ? ' (hoy)' : ' (hace ' + dias + ' día' + (dias === 1 ? '' : 's') + ')')) + (a.obra ? ' · ' + esc(a.obra) : '') + '</span></div>'
+        + '<div class="r"><div>' + (num(a.importe) ? euros(num(a.importe)) : '—') + '</div>' + pills + '</div></div>';
+    }).join('');
+    el.innerHTML = html;
+  }
+
   /* ===================== resumen del correo y calendario ===================== */
   function resumen() {
     var r = (datos && datos.consolaResumen || []).filter(function (o) { return o.id === 'hoy'; })[0];
@@ -406,7 +427,7 @@
     if ($('act')) $('act').onclick = cargar;
     $('banner').innerHTML = origen === 'prueba' ? '<div class="banner"><span>Estás viendo la consola con datos de ejemplo.</span><button class="btn" id="salirDemo">Conectar de verdad</button></div>' : '';
     if ($('salirDemo')) $('salirDemo').onclick = function () { setDemo(false); datos = null; cargar(); };
-    pintarCorreo(); pintarEfectos(); pintarCalendario();
+    pintarCorreo(); pintarEfectos(); pintarCalendario(); pintarAlbaranes();
     $('pie').textContent = origen === 'datt' ? 'Datos de datt, con la misma conexión que Tesorería.' : '';
   }
 
@@ -447,6 +468,10 @@
       invoicesIn: [
         { id: 'p1', supplierId: 's1', number: '2026-09-102', amount: 3120.55, dueDate: isoHoy(1), paymentMethod: 'Confirming' },
         { id: 'p2', supplierId: 's2', number: '861', amount: 640, dueDate: isoHoy(10) }
+      ],
+      albaranes: [
+        { id: 'alb301-2026', numero: '00-000301/2026', fecha: isoHoy(0), cliente: 'UTE Sede Judicial', obra: 'OBRA: ejemplo', importe: 1250, firmado: false, valorado: null, pendienteFacturar: true },
+        { id: 'alb289-2026', numero: '00-000289/2026', fecha: isoHoy(-5), cliente: 'Construcciones del Poniente', obra: '', importe: 0, firmado: true, valorado: false, pendienteFacturar: true }
       ],
       consolaResumen: [{
         id: 'hoy', fecha: isoHoy(), generado: isoHoy() + 'T08:47',
