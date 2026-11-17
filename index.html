@@ -390,16 +390,23 @@
 
   /* ===================== control de transporte ===================== */
   /* Cada albarán de MN Gest (pestaña «albaranes») sale como ficha. Jesús la arrastra
-     al transportista y elige «camión completo» o nº de palets. Se guarda aparte, en la
-     pestaña «transporteAlbaranes» (id del albarán + JSON), para que la sincronización
-     del PC, que reescribe «albaranes», no lo borre. */
+     al transportista y elige «camión completo» o nº de palets. Se guarda dentro del
+     propio albarán, en el campo «transporte», con la acción «update» que ya tiene el
+     Code.gs. La sincronización del PC solo rellena campos vacíos, así que no lo borra. */
   var otrosNuevos = [];      /* columnas creadas con «+ Otro» que aún no tienen fichas */
   var ocupado = false;       /* hay una ventana abierta o una ficha en movimiento: no repintar */
 
   function transportes() {
     var m = {};
-    (datos && datos.transporteAlbaranes || []).forEach(function (t) { if (t.id && t.transportista) m[t.id] = t; });
+    (datos && datos.albaranes || []).forEach(function (a) { var t = a.transporte; if (t && t.transportista) m[a.id] = t; });
     return m;
+  }
+  async function enviar(cuerpo) {
+    var cfg = getCfg();
+    cuerpo.key = cfg.key;
+    var r = await fetch(cfg.url, { method: 'POST', body: JSON.stringify(cuerpo) });
+    var j = await r.json(); if (j.error) throw new Error(j.error);
+    return j;
   }
   function numAlb(a) { return String(a.numero || a.id || '').replace(/^\d+-0*/, '').replace(/\/\d+$/, ''); }
   function obraCorta(o) { return String(o || '').replace(/^OBRA:\s*/i, '').trim(); }
@@ -412,7 +419,7 @@
       + '<button class="btn" id="btnSync">Sincronizar ahora</button></div>';
     if (!datos) { el.innerHTML = head + '<div class="empty">Conecta la consola para ver los albaranes.</div>'; enlazarSync(); return; }
     if (!datos.albaranes) { el.innerHTML = head + '<div class="empty">datt no envía la pestaña de albaranes.</div>'; enlazarSync(); return; }
-    var aviso = datos.transporteAlbaranes ? '' : '<div class="warnline">datt aún no envía la pestaña «transporteAlbaranes»: falta añadirla a COLS en el Code.gs. Hasta entonces no se puede guardar.</div>';
+    var aviso = '';
 
     var tr = transportes();
     var lista = datos.albaranes.filter(function (a) { var f = fecha(a.fecha); return isoOk(f) && f >= TRANSPORTE_DESDE; });
@@ -509,19 +516,17 @@
 
   /* Guarda en datt (o quita, si t es null). Se ve al momento; si falla, se deshace. */
   async function guardarTransporte(id, t) {
-    if (!datos.transporteAlbaranes) datos.transporteAlbaranes = [];
-    var lista = datos.transporteAlbaranes, antes = lista.slice();
-    var resto = lista.filter(function (x) { return x.id !== id; });
-    if (t) resto.push({ id: id, transportista: t.transportista, tipo: t.tipo, palets: t.palets });
-    datos.transporteAlbaranes = resto;
+    var alb = (datos.albaranes || []).filter(function (a) { return a.id === id; })[0];
+    if (!alb) return;
+    var antes = alb.transporte || null;
+    var nuevo = t ? { transportista: t.transportista, tipo: t.tipo, palets: t.palets, fecha: isoHoy() } : null;
+    alb.transporte = nuevo;
     ocupado = false; pintarTransporte();
     if (origen !== 'datt') return;                        /* modo prueba: no se envía nada */
     try {
-      var cfg = getCfg();
-      var r = await fetch(cfg.url, { method: 'POST', body: JSON.stringify({ key: cfg.key, action: 'guardarTransporte', id: id, transporte: t }) });
-      var j = await r.json(); if (j.error) throw new Error(j.error);
+      await enviar({ action: 'update', c: 'albaranes', id: id, patch: JSON.stringify({ transporte: nuevo }) });
     } catch (e) {
-      datos.transporteAlbaranes = antes; pintarTransporte();
+      alb.transporte = antes; pintarTransporte();
       alertaTransporte('No se ha guardado: ' + (e.message || e));
     }
   }
@@ -539,9 +544,10 @@
       b.textContent = 'Pidiendo…'; b.style.pointerEvents = 'none';
       try {
         if (origen === 'datt') {
-          var cfg = getCfg();
-          var r = await fetch(cfg.url, { method: 'POST', body: JSON.stringify({ key: cfg.key, action: 'pedirSincronizacion' }) });
-          var j = await r.json(); if (j.error) throw new Error(j.error);
+          /* aviso en la pestaña «counters», registro «peticion_sincronizar» (add lo crea si no existe; update pone la hora) */
+          var aviso = JSON.stringify({ pedido: new Date().toISOString(), desde: 'consola' });
+          await enviar({ action: 'add', c: 'counters', id: 'peticion_sincronizar', json: aviso });
+          await enviar({ action: 'update', c: 'counters', id: 'peticion_sincronizar', patch: aviso });
         }
         b.textContent = 'Pedido. Actualizando…';
         setTimeout(function () { cargar(); }, 90000);       /* da tiempo al PC a subir los albaranes */
@@ -666,13 +672,9 @@
       albaranes: [
         { id: 'alb301-2026', numero: '00-000301/2026', fecha: isoHoy(0), cliente: 'UTE Sede Judicial', obra: 'OBRA: ejemplo', importe: 1250, firmado: false, valorado: null, pendienteFacturar: true },
         { id: 'alb289-2026', numero: '00-000289/2026', fecha: isoHoy(-5), cliente: 'Construcciones del Poniente', obra: '', importe: 0, firmado: true, valorado: false, pendienteFacturar: true },
-        { id: 'alb330-2026', numero: '00-000330/2026', fecha: TRANSPORTE_DESDE, cliente: 'Cliente de ejemplo', obra: 'OBRA: 20 viviendas Huércal', importe: 900, pendienteFacturar: false },
-        { id: 'alb331-2026', numero: '00-000331/2026', fecha: TRANSPORTE_DESDE, cliente: 'Cliente de ejemplo', obra: 'OBRA: Residencia Marbella', importe: 1500, pendienteFacturar: false },
+        { id: 'alb330-2026', numero: '00-000330/2026', fecha: TRANSPORTE_DESDE, cliente: 'Cliente de ejemplo', obra: 'OBRA: 20 viviendas Huércal', importe: 900, pendienteFacturar: false, transporte: { transportista: 'TRANS D CRUZ', tipo: 'completo', palets: null } },
+        { id: 'alb331-2026', numero: '00-000331/2026', fecha: TRANSPORTE_DESDE, cliente: 'Cliente de ejemplo', obra: 'OBRA: Residencia Marbella', importe: 1500, pendienteFacturar: false, transporte: { transportista: 'TRANS JAJOMI / FERMA', tipo: 'palets', palets: 3 } },
         { id: 'alb332-2026', numero: '00-000332/2026', fecha: TRANSPORTE_DESDE, cliente: 'Cliente de ejemplo', obra: 'OBRA: Nave Vícar', importe: 400, pendienteFacturar: false }
-      ],
-      transporteAlbaranes: [
-        { id: 'alb330-2026', transportista: 'TRANS D CRUZ', tipo: 'completo', palets: null },
-        { id: 'alb331-2026', transportista: 'TRANS JAJOMI / FERMA', tipo: 'palets', palets: 3 }
       ],
       consolaResumen: [{
         id: 'hoy', fecha: isoHoy(), generado: isoHoy() + 'T08:47',
