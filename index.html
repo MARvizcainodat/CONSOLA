@@ -131,6 +131,27 @@
   .modal .acts { display: flex; gap: 8px; justify-content: space-between; margin-top: 16px; flex-wrap: wrap; }
   .modal .err { color: var(--critical); font-size: 13px; min-height: 18px; margin-top: 8px; }
 
+  /* transporte */
+  .board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(190px, 1fr); gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+  .col { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; min-height: 140px; display: flex; flex-direction: column; gap: 6px; }
+  .col.sin { background: var(--warn-bg); border-color: transparent; }
+  .col.over { outline: 2px dashed var(--info); outline-offset: -2px; }
+  .col h3 { margin: 0 0 2px; font-size: 12px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; display: flex; justify-content: space-between; gap: 6px; color: var(--ink-soft); }
+  .col.sin h3 { color: var(--warn); }
+  .col .vacio { font-size: 12.5px; color: var(--ink-faint); padding: 6px 2px; }
+  .ficha { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 7px 9px; cursor: grab; font-size: 13px; line-height: 1.35; }
+  .ficha:hover { border-color: var(--border-strong); }
+  .ficha.drag { opacity: .4; }
+  .ficha b { font-family: var(--font-mono); font-weight: 500; }
+  .ficha .f { color: var(--ink-soft); font-size: 12px; float: right; }
+  .ficha .o { display: block; color: var(--ink-soft); font-size: 12px; clear: both; }
+  .ficha .pill { margin-top: 4px; }
+  .col.nuevo { background: transparent; border-style: dashed; align-items: center; justify-content: center; min-height: 140px; }
+  .opc { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+  .opc label { display: flex !important; align-items: center; gap: 8px; font-weight: 500 !important; margin: 0 !important; }
+  .opc input[type=radio] { width: auto; margin: 0; }
+  .opc input[type=number] { width: 90px; margin: 0; }
+
   footer { margin-top: 24px; font-size: 12px; color: var(--ink-faint); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
   footer button { all: unset; cursor: pointer; text-decoration: underline; }
 
@@ -175,6 +196,8 @@
     </div>
   </div>
 
+  <section class="card" id="cardTransporte"></section>
+
   <footer>
     <span id="pie"></span>
     <span><button id="btnConexion">Conexión</button></span>
@@ -205,6 +228,9 @@
   var REFRESCO_MIN = 5;      /* recarga automática */
   /* La dirección y la clave son las mismas de Tesorería y se comparten con ella en este navegador. */
   var CFG_KEY = 'panelTesoreriaCfg';
+  /* Transporte: albaranes que salen como fichas (desde esta fecha) y columnas fijas */
+  var TRANSPORTE_DESDE = '2026-11-01';
+  var TRANSPORTISTAS = ['TRANS JAJOMI / FERMA', 'TRANS D CRUZ', 'CAMIÓN PROPIO'];
   var DEMO_KEY = 'consolaModoPrueba';
 
   /* ===================== utilidades ===================== */
@@ -362,6 +388,171 @@
     el.innerHTML = html;
   }
 
+  /* ===================== control de transporte ===================== */
+  /* Cada albarán de MN Gest (pestaña «albaranes») sale como ficha. Jesús la arrastra
+     al transportista y elige «camión completo» o nº de palets. Se guarda aparte, en la
+     pestaña «transporteAlbaranes» (id del albarán + JSON), para que la sincronización
+     del PC, que reescribe «albaranes», no lo borre. */
+  var otrosNuevos = [];      /* columnas creadas con «+ Otro» que aún no tienen fichas */
+  var ocupado = false;       /* hay una ventana abierta o una ficha en movimiento: no repintar */
+
+  function transportes() {
+    var m = {};
+    (datos && datos.transporteAlbaranes || []).forEach(function (t) { if (t.id && t.transportista) m[t.id] = t; });
+    return m;
+  }
+  function numAlb(a) { return String(a.numero || a.id || '').replace(/^\d+-0*/, '').replace(/\/\d+$/, ''); }
+  function obraCorta(o) { return String(o || '').replace(/^OBRA:\s*/i, '').trim(); }
+
+  function pintarTransporte() {
+    if (ocupado) return;
+    var el = $('cardTransporte');
+    var head = '<div class="card-head"><div><h2 class="sec">Transporte de albaranes</h2>'
+      + '<div class="meta">Arrastra cada albarán al transportista que lo ha llevado.</div></div>'
+      + '<button class="btn" id="btnSync">Sincronizar ahora</button></div>';
+    if (!datos) { el.innerHTML = head + '<div class="empty">Conecta la consola para ver los albaranes.</div>'; enlazarSync(); return; }
+    if (!datos.albaranes) { el.innerHTML = head + '<div class="empty">datt no envía la pestaña de albaranes.</div>'; enlazarSync(); return; }
+    var aviso = datos.transporteAlbaranes ? '' : '<div class="warnline">datt aún no envía la pestaña «transporteAlbaranes»: falta añadirla a COLS en el Code.gs. Hasta entonces no se puede guardar.</div>';
+
+    var tr = transportes();
+    var lista = datos.albaranes.filter(function (a) { var f = fecha(a.fecha); return isoOk(f) && f >= TRANSPORTE_DESDE; });
+    lista.sort(function (a, b) { return (Number(numAlb(b)) || 0) - (Number(numAlb(a)) || 0); });
+
+    var cols = TRANSPORTISTAS.slice();
+    Object.keys(tr).forEach(function (id) { if (cols.indexOf(tr[id].transportista) < 0) cols.push(tr[id].transportista); });
+    otrosNuevos.forEach(function (n) { if (cols.indexOf(n) < 0) cols.push(n); });
+
+    var porCol = { '': [] }; cols.forEach(function (c) { porCol[c] = []; });
+    lista.forEach(function (a) { var t = tr[a.id]; porCol[t ? t.transportista : ''].push(a); });
+
+    var ficha = function (a) {
+      var t = tr[a.id], f = fecha(a.fecha);
+      var pill = t ? (t.tipo === 'completo' ? '<span class="pill p-ok">Camión completo</span>' : '<span class="pill p-ok">' + esc(t.palets) + ' palet' + (Number(t.palets) === 1 ? '' : 's') + '</span>') : '';
+      return '<div class="ficha" draggable="true" data-id="' + esc(a.id) + '" title="' + esc(a.cliente || '') + '">'
+        + '<b>Alb. ' + esc(numAlb(a)) + '</b><span class="f">' + fmtFecha(f) + '</span>'
+        + '<span class="o">' + esc(obraCorta(a.obra) || '—') + '</span>' + pill + '</div>';
+    };
+    var columna = function (nombre, titulo, cls) {
+      var fs = porCol[nombre] || [];
+      return '<div class="col ' + (cls || '') + '" data-col="' + esc(nombre) + '"><h3><span>' + esc(titulo) + '</span><span>' + fs.length + '</span></h3>'
+        + (fs.length ? fs.map(ficha).join('') : '<div class="vacio">' + (nombre ? 'Suelta aquí' : 'Todo asignado') + '</div>') + '</div>';
+    };
+    var html = head + aviso + '<div class="board">' + columna('', 'Sin asignar', 'sin')
+      + cols.map(function (c) { return columna(c, c); }).join('')
+      + '<div class="col nuevo"><button class="btn" id="btnOtro">+ Otro transportista</button></div></div>';
+    el.innerHTML = html;
+    enlazarSync();
+    $('btnOtro').onclick = crearOtro;
+    enlazarArrastre(el);
+  }
+
+  function enlazarArrastre(el) {
+    var arrastrando = null;
+    el.querySelectorAll('.ficha').forEach(function (f) {
+      f.addEventListener('dragstart', function (e) { arrastrando = f.getAttribute('data-id'); ocupado = true; f.classList.add('drag'); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', arrastrando); } catch (x) {} });
+      f.addEventListener('dragend', function () { f.classList.remove('drag'); if (!$('modalRoot').innerHTML) ocupado = false; });
+    });
+    el.querySelectorAll('.col[data-col]').forEach(function (c) {
+      c.addEventListener('dragover', function (e) { e.preventDefault(); c.classList.add('over'); });
+      c.addEventListener('dragleave', function () { c.classList.remove('over'); });
+      c.addEventListener('drop', function (e) {
+        e.preventDefault(); c.classList.remove('over');
+        var id = arrastrando, destino = c.getAttribute('data-col');
+        if (!id) return;
+        var actual = transportes()[id];
+        if ((actual ? actual.transportista : '') === destino) { ocupado = false; return; }
+        if (!destino) { guardarTransporte(id, null); return; }       /* devuelta a «Sin asignar» */
+        preguntarCarga(id, destino, actual);
+      });
+    });
+  }
+
+  /* Ventana: ¿camión completo o cuántos palets? */
+  function preguntarCarga(id, transportista, actual) {
+    ocupado = true;
+    var a = (datos.albaranes || []).filter(function (x) { return x.id === id; })[0] || {};
+    var palets = actual && actual.tipo === 'palets' ? actual.palets : '';
+    $('modalRoot').innerHTML = '<div class="modal"><div class="box"><h3>Alb. ' + esc(numAlb(a)) + ' → ' + esc(transportista) + '</h3>'
+      + '<p>' + esc(obraCorta(a.obra) || a.cliente || '') + '</p>'
+      + '<div class="opc"><label><input type="radio" name="tCarga" value="completo"' + (palets ? '' : ' checked') + '> Camión completo</label>'
+      + '<label><input type="radio" name="tCarga" value="palets"' + (palets ? ' checked' : '') + '> Palets: <input type="number" id="tPalets" min="1" step="1" value="' + esc(palets) + '"></label></div>'
+      + '<div class="err" id="tErr"></div>'
+      + '<div class="acts"><button class="btn" id="tNo">Cancelar</button><button class="btn primary" id="tOk">Guardar</button></div></div></div>';
+    $('tPalets').onfocus = function () { document.querySelector('input[name=tCarga][value=palets]').checked = true; };
+    var cerrar = function () { $('modalRoot').innerHTML = ''; ocupado = false; };
+    $('tNo').onclick = function () { cerrar(); pintarTransporte(); };
+    $('tOk').onclick = function () {
+      var tipo = document.querySelector('input[name=tCarga]:checked').value, n = Math.round(Number($('tPalets').value));
+      if (tipo === 'palets' && !(n >= 1)) { $('tErr').textContent = 'Escribe el número de palets.'; return; }
+      cerrar();
+      guardarTransporte(id, { transportista: transportista, tipo: tipo, palets: tipo === 'palets' ? n : null });
+    };
+  }
+
+  function crearOtro() {
+    ocupado = true;
+    $('modalRoot').innerHTML = '<div class="modal"><div class="box"><h3>Nuevo transportista</h3>'
+      + '<p>Aparecerá como una columna más. Se queda guardado en cuanto le pongas un albarán.</p>'
+      + '<label>Nombre</label><input id="oNom" maxlength="60" placeholder="TRANS …">'
+      + '<div class="err" id="oErr"></div>'
+      + '<div class="acts"><button class="btn" id="oNo">Cancelar</button><button class="btn primary" id="oOk">Crear</button></div></div></div>';
+    $('oNom').focus();
+    var cerrar = function () { $('modalRoot').innerHTML = ''; ocupado = false; pintarTransporte(); };
+    $('oNo').onclick = cerrar;
+    $('oOk').onclick = function () {
+      var n = $('oNom').value.trim().toUpperCase();
+      if (!n) { $('oErr').textContent = 'Escribe el nombre.'; return; }
+      if (otrosNuevos.indexOf(n) < 0 && TRANSPORTISTAS.indexOf(n) < 0) otrosNuevos.push(n);
+      cerrar();
+    };
+  }
+
+  /* Guarda en datt (o quita, si t es null). Se ve al momento; si falla, se deshace. */
+  async function guardarTransporte(id, t) {
+    if (!datos.transporteAlbaranes) datos.transporteAlbaranes = [];
+    var lista = datos.transporteAlbaranes, antes = lista.slice();
+    var resto = lista.filter(function (x) { return x.id !== id; });
+    if (t) resto.push({ id: id, transportista: t.transportista, tipo: t.tipo, palets: t.palets });
+    datos.transporteAlbaranes = resto;
+    ocupado = false; pintarTransporte();
+    if (origen !== 'datt') return;                        /* modo prueba: no se envía nada */
+    try {
+      var cfg = getCfg();
+      var r = await fetch(cfg.url, { method: 'POST', body: JSON.stringify({ key: cfg.key, action: 'guardarTransporte', id: id, transporte: t }) });
+      var j = await r.json(); if (j.error) throw new Error(j.error);
+    } catch (e) {
+      datos.transporteAlbaranes = antes; pintarTransporte();
+      alertaTransporte('No se ha guardado: ' + (e.message || e));
+    }
+  }
+  function alertaTransporte(txt) {
+    var el = $('cardTransporte'), d = document.createElement('div');
+    d.className = 'warnline'; d.textContent = txt;
+    el.insertBefore(d, el.children[1] || null);
+  }
+
+  /* «Sincronizar ahora»: deja el aviso en datt para que el PC de la oficina suba ya lo nuevo de MN Gest,
+     y vuelve a leer datt al cabo de un rato. */
+  function enlazarSync() {
+    var b = $('btnSync'); if (!b) return;
+    b.onclick = async function () {
+      b.textContent = 'Pidiendo…'; b.style.pointerEvents = 'none';
+      try {
+        if (origen === 'datt') {
+          var cfg = getCfg();
+          var r = await fetch(cfg.url, { method: 'POST', body: JSON.stringify({ key: cfg.key, action: 'pedirSincronizacion' }) });
+          var j = await r.json(); if (j.error) throw new Error(j.error);
+        }
+        b.textContent = 'Pedido. Actualizando…';
+        setTimeout(function () { cargar(); }, 90000);       /* da tiempo al PC a subir los albaranes */
+        setTimeout(function () { if ($('btnSync')) { $('btnSync').textContent = 'Sincronizar ahora'; $('btnSync').style.pointerEvents = ''; } }, 91000);
+      } catch (e) {
+        b.textContent = 'Sincronizar ahora'; b.style.pointerEvents = '';
+        alertaTransporte('No se pudo pedir la sincronización: ' + (e.message || e));
+      }
+    };
+  }
+
   /* ===================== resumen del correo y calendario ===================== */
   function resumen() {
     var r = (datos && datos.consolaResumen || []).filter(function (o) { return o.id === 'hoy'; })[0];
@@ -430,7 +621,7 @@
     if ($('act')) $('act').onclick = cargar;
     $('banner').innerHTML = origen === 'prueba' ? '<div class="banner"><span>Estás viendo la consola con datos de ejemplo.</span><button class="btn" id="salirDemo">Conectar de verdad</button></div>' : '';
     if ($('salirDemo')) $('salirDemo').onclick = function () { setDemo(false); datos = null; cargar(); };
-    pintarCorreo(); pintarEfectos(); pintarCalendario(); pintarAlbaranes();
+    pintarCorreo(); pintarEfectos(); pintarCalendario(); pintarAlbaranes(); pintarTransporte();
     $('pie').textContent = origen === 'datt' ? 'Datos de datt, con la misma conexión que Tesorería.' : '';
   }
 
@@ -474,7 +665,14 @@
       ],
       albaranes: [
         { id: 'alb301-2026', numero: '00-000301/2026', fecha: isoHoy(0), cliente: 'UTE Sede Judicial', obra: 'OBRA: ejemplo', importe: 1250, firmado: false, valorado: null, pendienteFacturar: true },
-        { id: 'alb289-2026', numero: '00-000289/2026', fecha: isoHoy(-5), cliente: 'Construcciones del Poniente', obra: '', importe: 0, firmado: true, valorado: false, pendienteFacturar: true }
+        { id: 'alb289-2026', numero: '00-000289/2026', fecha: isoHoy(-5), cliente: 'Construcciones del Poniente', obra: '', importe: 0, firmado: true, valorado: false, pendienteFacturar: true },
+        { id: 'alb330-2026', numero: '00-000330/2026', fecha: TRANSPORTE_DESDE, cliente: 'Cliente de ejemplo', obra: 'OBRA: 20 viviendas Huércal', importe: 900, pendienteFacturar: false },
+        { id: 'alb331-2026', numero: '00-000331/2026', fecha: TRANSPORTE_DESDE, cliente: 'Cliente de ejemplo', obra: 'OBRA: Residencia Marbella', importe: 1500, pendienteFacturar: false },
+        { id: 'alb332-2026', numero: '00-000332/2026', fecha: TRANSPORTE_DESDE, cliente: 'Cliente de ejemplo', obra: 'OBRA: Nave Vícar', importe: 400, pendienteFacturar: false }
+      ],
+      transporteAlbaranes: [
+        { id: 'alb330-2026', transportista: 'TRANS D CRUZ', tipo: 'completo', palets: null },
+        { id: 'alb331-2026', transportista: 'TRANS JAJOMI / FERMA', tipo: 'palets', palets: 3 }
       ],
       consolaResumen: [{
         id: 'hoy', fecha: isoHoy(), generado: isoHoy() + 'T08:47',
